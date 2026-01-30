@@ -1,0 +1,112 @@
+basePath: /
+definitions:
+  supermarket-catalogue_internal_models.Product:
+    properties:
+      admin_id:
+        type: integer
+      category_id:
+        type: integer
+      id:
+        type: integer
+      image:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      stock:
+        type: integer
+    type: object
+host: localhost:8080
+info:
+  contact:
+    email: support@supermarket.com
+    name: API Support
+  description: API for supermarket products catalogue
+  termsOfService: http://swagger.io/terms/
+  title: Supermarket Goods Catalogue API
+  version: "1.0"
+paths:
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if API is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - utility
+  /products:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all products from the supermarket catalogue
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/supermarket-catalogue_internal_models.Product'
+            type: array
+      summary: Get all products
+      tags:
+      - products
+    post:
+      consumes:
+      - application/json
+      description: Add a new product to the catalogue
+      parameters:
+      - description: Product data
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/supermarket-catalogue_internal_models.Product'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/supermarket-catalogue_internal_models.Product'
+      summary: Create a new product
+      tags:
+      - products
+  /products/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific product by its ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/supermarket-catalogue_internal_models.Product'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get product by ID
+      tags:
+      - products
+swagger: "2.0"
