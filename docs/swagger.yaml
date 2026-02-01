@@ -1,5 +1,14 @@
 basePath: /
 definitions:
+  internal_handlers.User:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+      role:
+        type: string
+    type: object
   supermarket-catalogue_internal_models.Product:
     properties:
       admin_id:
@@ -83,6 +92,30 @@ paths:
       tags:
       - products
   /products/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing product
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a product
+      tags:
+      - products
     get:
       consumes:
       - application/json
@@ -109,4 +142,53 @@ paths:
       summary: Get product by ID
       tags:
       - products
+    put:
+      consumes:
+      - application/json
+      description: Update an existing product
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated product data
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/supermarket-catalogue_internal_models.Product'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/supermarket-catalogue_internal_models.Product'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a product
+      tags:
+      - products
+  /users:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve list of team members working on the project
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/internal_handlers.User'
+            type: array
+      summary: Get team members
+      tags:
+      - users
 swagger: "2.0"

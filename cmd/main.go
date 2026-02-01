@@ -6,9 +6,10 @@ import (
 	"time"
 
 	"supermarket-catalogue/internal/handlers"
+	"supermarket-catalogue/internal/middleware"
 	"supermarket-catalogue/internal/repository"
 
-	_ "supermarket-catalogue/docs" // Swagger docs
+	_ "supermarket-catalogue/docs"
 
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
@@ -32,12 +33,16 @@ func main() {
 
 	r := mux.NewRouter()
 
+	r.Use(middleware.LoggingMiddleware)
+
 	r.HandleFunc("/products", handlers.GetProducts).Methods("GET")
 	r.HandleFunc("/products", handlers.CreateProduct).Methods("POST")
 	r.HandleFunc("/products/{id}", handlers.GetProductByID).Methods("GET")
+	r.HandleFunc("/products/{id}", handlers.UpdateProduct).Methods("PUT")
+	r.HandleFunc("/products/{id}", handlers.DeleteProduct).Methods("DELETE")
 	r.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
+	r.HandleFunc("/users", handlers.GetUsersHandler).Methods("GET")
 
-	// Swagger с правильным URL
 	r.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
 		httpSwagger.URL("http://localhost:8080/swagger/doc.json"),
 		httpSwagger.DocExpansion("none"),

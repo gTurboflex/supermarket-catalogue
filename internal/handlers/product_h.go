@@ -148,3 +148,97 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 		"message": "Supermarket Catalogue API is running",
 	})
 }
+
+// UpdateProduct handles PUT request to update a product
+// @Summary Update a product
+// @Description Update an existing product
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Param product body models.Product true "Updated product data"
+// @Success 200 {object} models.Product
+// @Failure 404 {object} map[string]string
+// @Router /products/{id} [put]
+func UpdateProduct(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		return
+	}
+
+	var product models.Product
+	err = json.NewDecoder(r.Body).Decode(&product)
+	if err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	query := `
+        UPDATE products 
+        SET name = $1, price = $2, stock = $3, image = $4, category_id = $5, admin_id = $6
+        WHERE id = $7
+        RETURNING id
+    `
+
+	err = database.DB.QueryRow(query,
+		product.Name, product.Price, product.Stock, product.Image,
+		product.CategoryID, product.AdminID, id,
+	).Scan(&product.ID)
+
+	if err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Product not found",
+		})
+		return
+	}
+
+	product.ID = id
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(product)
+}
+
+// DeleteProduct handles DELETE request to delete a product
+// @Summary Delete a product
+// @Description Delete an existing product
+// @Tags products
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Success 204 "No Content"
+// @Failure 404 {object} map[string]string
+// @Router /products/{id} [delete]
+func DeleteProduct(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		http.Error(w, "Invalid product ID", http.StatusBadRequest)
+		return
+	}
+
+	query := `DELETE FROM products WHERE id = $1`
+	result, err := database.DB.Exec(query, id)
+	if err != nil {
+		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	rowsAffected, _ := result.RowsAffected()
+	if rowsAffected == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Product not found",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
