@@ -19,6 +19,58 @@ const docTemplate = `{
     "host": "{{.Host}}",
     "basePath": "{{.BasePath}}",
     "paths": {
+        "/basket/compare": {
+            "post": {
+                "description": "Given a list of (barcode, quantity) items, compute cost to buy that basket in each supermarket and list missing items",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "basket"
+                ],
+                "summary": "Compare basket cost across supermarkets",
+                "parameters": [
+                    {
+                        "description": "Basket items",
+                        "name": "basket",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/handlers.BasketRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.BasketResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/health": {
             "get": {
                 "description": "Check if API is running",
@@ -64,7 +116,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/supermarket-catalogue_internal_models.Product"
+                                "$ref": "#/definitions/models.Product"
                             }
                         }
                     }
@@ -89,7 +141,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/supermarket-catalogue_internal_models.Product"
+                            "$ref": "#/definitions/models.Product"
                         }
                     }
                 ],
@@ -97,7 +149,66 @@ const docTemplate = `{
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/supermarket-catalogue_internal_models.Product"
+                            "$ref": "#/definitions/models.Product"
+                        }
+                    }
+                }
+            }
+        },
+        "/products/compare/{barcode}": {
+            "get": {
+                "description": "Retrieve all product entries with the same barcode across supermarkets and highlight the cheapest option",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "products"
+                ],
+                "summary": "Compare product offers by barcode",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Product Barcode",
+                        "name": "barcode",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/handlers.compareResponse"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -129,7 +240,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/supermarket-catalogue_internal_models.Product"
+                            "$ref": "#/definitions/models.Product"
                         }
                     },
                     "404": {
@@ -169,7 +280,7 @@ const docTemplate = `{
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/supermarket-catalogue_internal_models.Product"
+                            "$ref": "#/definitions/models.Product"
                         }
                     }
                 ],
@@ -177,7 +288,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/supermarket-catalogue_internal_models.Product"
+                            "$ref": "#/definitions/models.Product"
                         }
                     },
                     "404": {
@@ -228,6 +339,32 @@ const docTemplate = `{
                 }
             }
         },
+        "/supermarkets/stats": {
+            "get": {
+                "description": "Retrieve product statistics for each supermarket: product count, average, min, max price",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "supermarkets"
+                ],
+                "summary": "Supermarket statistics",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/handlers.SupermarketStats"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/users": {
             "get": {
                 "description": "Retrieve list of team members working on the project",
@@ -247,7 +384,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/internal_handlers.User"
+                                "$ref": "#/definitions/handlers.User"
                             }
                         }
                     }
@@ -256,7 +393,86 @@ const docTemplate = `{
         }
     },
     "definitions": {
-        "internal_handlers.User": {
+        "handlers.BasketItem": {
+            "type": "object",
+            "properties": {
+                "barcode": {
+                    "type": "string"
+                },
+                "quantity": {
+                    "type": "integer"
+                }
+            }
+        },
+        "handlers.BasketRequest": {
+            "type": "object",
+            "properties": {
+                "items": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.BasketItem"
+                    }
+                }
+            }
+        },
+        "handlers.BasketResponse": {
+            "type": "object",
+            "properties": {
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.SupermarketTotal"
+                    }
+                }
+            }
+        },
+        "handlers.SupermarketStats": {
+            "type": "object",
+            "properties": {
+                "avg_price": {
+                    "type": "number"
+                },
+                "max_price": {
+                    "type": "number"
+                },
+                "min_price": {
+                    "type": "number"
+                },
+                "product_count": {
+                    "type": "integer"
+                },
+                "supermarket_id": {
+                    "type": "integer"
+                },
+                "supermarket_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "handlers.SupermarketTotal": {
+            "type": "object",
+            "properties": {
+                "matched_items": {
+                    "type": "integer"
+                },
+                "missing": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "supermarket_id": {
+                    "type": "integer"
+                },
+                "supermarket_name": {
+                    "type": "string"
+                },
+                "total": {
+                    "type": "number"
+                }
+            }
+        },
+        "handlers.User": {
             "type": "object",
             "properties": {
                 "id": {
@@ -270,11 +486,57 @@ const docTemplate = `{
                 }
             }
         },
-        "supermarket-catalogue_internal_models.Product": {
+        "handlers.compareResponse": {
             "type": "object",
             "properties": {
-                "admin_id": {
+                "barcode": {
+                    "type": "string"
+                },
+                "best": {
+                    "$ref": "#/definitions/handlers.compareRow"
+                },
+                "results": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/handlers.compareRow"
+                    }
+                }
+            }
+        },
+        "handlers.compareRow": {
+            "type": "object",
+            "properties": {
+                "last_updated": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "price": {
+                    "type": "number"
+                },
+                "product_id": {
                     "type": "integer"
+                },
+                "supermarket_id": {
+                    "type": "integer"
+                },
+                "supermarket_name": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "unit_price": {
+                    "type": "number"
+                }
+            }
+        },
+        "models.Product": {
+            "type": "object",
+            "properties": {
+                "barcode": {
+                    "type": "string"
                 },
                 "category_id": {
                     "type": "integer"
@@ -285,14 +547,29 @@ const docTemplate = `{
                 "image": {
                     "type": "string"
                 },
+                "last_updated": {
+                    "type": "string"
+                },
                 "name": {
                     "type": "string"
+                },
+                "owner_id": {
+                    "type": "integer"
                 },
                 "price": {
                     "type": "number"
                 },
                 "stock": {
                     "type": "integer"
+                },
+                "supermarket_id": {
+                    "type": "integer"
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "unit_price": {
+                    "type": "number"
                 }
             }
         }

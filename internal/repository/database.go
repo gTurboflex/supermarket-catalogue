@@ -11,7 +11,6 @@ import (
 
 var DB *sql.DB
 
-// Init initializes database connection
 func Init() error {
 	connStr := fmt.Sprintf(
 		"host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
@@ -35,8 +34,19 @@ func Init() error {
 }
 
 func createTables() {
-	// Create products table
-	query := `
+	_, err := DB.Exec(`
+	CREATE TABLE IF NOT EXISTS supermarkets (
+		id SERIAL PRIMARY KEY,
+		name VARCHAR(255) NOT NULL,
+		address TEXT,
+		owner_id INTEGER,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)`)
+	if err != nil {
+		log.Fatal("Failed to create supermarkets table:", err)
+	}
+
+	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS products (
 		id SERIAL PRIMARY KEY,
 		name VARCHAR(255) NOT NULL,
@@ -44,14 +54,17 @@ func createTables() {
 		stock INTEGER NOT NULL,
 		image TEXT,
 		category_id INTEGER,
-		admin_id INTEGER,
+		owner_id INTEGER,
+		supermarket_id INTEGER,
+		barcode VARCHAR(100),
+		unit VARCHAR(50),
+		unit_price DECIMAL(10,2),
+		last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-	)`
-
-	_, err := DB.Exec(query)
+	)`)
 	if err != nil {
 		log.Fatal("Failed to create products table:", err)
 	}
 
-	log.Println("✅ Products table created/verified")
+	log.Println("✅ Tables created/verified")
 }

@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"strconv"
@@ -10,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 )
 
-// GetProducts handles GET request for all products
+// GetProducts
 // @Summary Get all products
 // @Description Retrieve all products from the supermarket catalogue
 // @Tags products
@@ -20,7 +21,7 @@ import (
 // @Router /products [get]
 func GetProducts(w http.ResponseWriter, r *http.Request) {
 	rows, err := database.DB.Query(`
-		SELECT id, name, price, stock, image, category_id, admin_id 
+		SELECT id, name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price, last_updated
 		FROM products 
 		ORDER BY id
 	`)
@@ -33,11 +34,40 @@ func GetProducts(w http.ResponseWriter, r *http.Request) {
 	var products []models.Product
 	for rows.Next() {
 		var p models.Product
-		err := rows.Scan(&p.ID, &p.Name, &p.Price, &p.Stock, &p.Image, &p.CategoryID, &p.AdminID)
+		var image sql.NullString
+		var barcode sql.NullString
+		var unit sql.NullString
+		var unitPrice sql.NullFloat64
+		var lastUpdated sql.NullTime
+		var ownerID sql.NullInt64
+		var supermarketID sql.NullInt64
+
+		err := rows.Scan(
+			&p.ID, &p.Name, &p.Price, &p.Stock,
+			&image, &p.CategoryID, &ownerID, &supermarketID,
+			&barcode, &unit, &unitPrice, &lastUpdated,
+		)
 		if err != nil {
 			http.Error(w, "Scan error: "+err.Error(), http.StatusInternalServerError)
 			return
 		}
+
+		p.Image = image.String
+		p.Barcode = barcode.String
+		p.Unit = unit.String
+		if unitPrice.Valid {
+			p.UnitPrice = unitPrice.Float64
+		}
+		if lastUpdated.Valid {
+			p.LastUpdated = lastUpdated.Time
+		}
+		if ownerID.Valid {
+			p.OwnerID = int(ownerID.Int64)
+		}
+		if supermarketID.Valid {
+			p.SupermarketID = int(supermarketID.Int64)
+		}
+
 		products = append(products, p)
 	}
 
@@ -45,7 +75,7 @@ func GetProducts(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(products)
 }
 
-// CreateProduct handles POST request to create a new product
+// CreateProduct
 // @Summary Create a new product
 // @Description Add a new product to the catalogue
 // @Tags products
@@ -63,8 +93,8 @@ func CreateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := `
-		INSERT INTO products (name, price, stock, image, category_id, admin_id)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO products (name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
 		RETURNING id
 	`
 
@@ -75,7 +105,11 @@ func CreateProduct(w http.ResponseWriter, r *http.Request) {
 		product.Stock,
 		product.Image,
 		product.CategoryID,
-		product.AdminID,
+		product.OwnerID,
+		product.SupermarketID,
+		product.Barcode,
+		product.Unit,
+		product.UnitPrice,
 	).Scan(&product.ID)
 
 	if err != nil {
@@ -88,7 +122,7 @@ func CreateProduct(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(product)
 }
 
-// GetProductByID handles GET request for single product
+// GetProductByID
 // @Summary Get product by ID
 // @Description Retrieve a specific product by its ID
 // @Tags products
@@ -108,16 +142,25 @@ func GetProductByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Запрос к базе данных
 	query := `
-		SELECT id, name, price, stock, image, category_id, admin_id
+		SELECT id, name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price, last_updated
 		FROM products 
 		WHERE id = $1
 	`
 
 	var p models.Product
+	var image sql.NullString
+	var barcode sql.NullString
+	var unit sql.NullString
+	var unitPrice sql.NullFloat64
+	var lastUpdated sql.NullTime
+	var ownerID sql.NullInt64
+	var supermarketID sql.NullInt64
+
 	err = database.DB.QueryRow(query, id).Scan(
-		&p.ID, &p.Name, &p.Price, &p.Stock, &p.Image, &p.CategoryID, &p.AdminID,
+		&p.ID, &p.Name, &p.Price, &p.Stock,
+		&image, &p.CategoryID, &ownerID, &supermarketID,
+		&barcode, &unit, &unitPrice, &lastUpdated,
 	)
 
 	if err != nil {
@@ -129,11 +172,27 @@ func GetProductByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	p.Image = image.String
+	p.Barcode = barcode.String
+	p.Unit = unit.String
+	if unitPrice.Valid {
+		p.UnitPrice = unitPrice.Float64
+	}
+	if lastUpdated.Valid {
+		p.LastUpdated = lastUpdated.Time
+	}
+	if ownerID.Valid {
+		p.OwnerID = int(ownerID.Int64)
+	}
+	if supermarketID.Valid {
+		p.SupermarketID = int(supermarketID.Int64)
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(p)
 }
 
-// HealthCheck handles health check request
+// HealthCheck
 // @Summary Health check
 // @Description Check if API is running
 // @Tags utility
@@ -149,7 +208,7 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// UpdateProduct handles PUT request to update a product
+// UpdateProduct
 // @Summary Update a product
 // @Description Update an existing product
 // @Tags products
@@ -179,14 +238,14 @@ func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 
 	query := `
         UPDATE products 
-        SET name = $1, price = $2, stock = $3, image = $4, category_id = $5, admin_id = $6
-        WHERE id = $7
+        SET name = $1, price = $2, stock = $3, image = $4, category_id = $5, owner_id = $6, supermarket_id = $7, barcode = $8, unit = $9, unit_price = $10
+        WHERE id = $11
         RETURNING id
     `
 
 	err = database.DB.QueryRow(query,
 		product.Name, product.Price, product.Stock, product.Image,
-		product.CategoryID, product.AdminID, id,
+		product.CategoryID, product.OwnerID, product.SupermarketID, product.Barcode, product.Unit, product.UnitPrice, id,
 	).Scan(&product.ID)
 
 	if err != nil {
@@ -203,7 +262,7 @@ func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(product)
 }
 
-// DeleteProduct handles DELETE request to delete a product
+// DeleteProduct
 // @Summary Delete a product
 // @Description Delete an existing product
 // @Tags products
