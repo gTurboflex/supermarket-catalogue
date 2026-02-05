@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supermarket Catalogue</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Supermarket Catalogue</h1>
+            <p>Supermarket Products Management</p>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" onclick="showTab('products')">Products</button>
+            <button class="tab-btn" onclick="showTab('compare')">Compare Barcode</button>
+            <button class="tab-btn" onclick="showTab('basket')">Basket Compare</button>
+            <button class="tab-btn" onclick="showTab('stats')">Supermarket Stats</button>
+            <button class="tab-btn" onclick="showTab('users')">Team</button>
+            <button class="tab-btn" onclick="showTab('health')">Health Check</button>
+        </nav>
+
+        <div class="tab-content" id="products">
+            <h2>Products Management</h2>
+            
+            <div class="controls">
+                <button onclick="getAllProducts()">Load All Products</button>
+                <button onclick="showCreateForm()" style="background: #28a745;">Create Product</button>
+            </div>
+
+            <div id="createProductForm" style="display: none; margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                <h3>Create New Product</h3>
+                <div class="form-group">
+                    <input type="text" id="prodName" placeholder="Product Name" class="input-field">
+                    <input type="number" id="prodPrice" placeholder="Price" step="0.01" class="input-field">
+                    <input type="number" id="prodStock" placeholder="Stock" class="input-field">
+                    <input type="text" id="prodBarcode" placeholder="Barcode" class="input-field">
+                    <input type="text" id="prodImage" placeholder="Image URL" class="input-field">
+                    <input type="number" id="prodCategory" placeholder="Category ID" class="input-field">
+                    <input type="number" id="prodSupermarket" placeholder="Supermarket ID" class="input-field">
+                    <button onclick="createProduct()" style="background: #28a745;">Submit</button>
+                    <button onclick="hideCreateForm()" style="background: #6c757d;">Cancel</button>
+                </div>
+            </div>
+
+            <div id="productsResult" class="result-box">
+                <p>Click "Load All Products" to load data</p>
+            </div>
+        </div>
+
+        <div class="tab-content" id="compare" style="display: none;">
+            <h2>Compare Products by Barcode</h2>
+            
+            <div class="controls">
+                <input type="text" id="barcodeInput" placeholder="Enter barcode (e.g., 5901234123457)" class="input-field">
+                <button onclick="compareBarcode()">Compare</button>
+            </div>
+
+            <div id="compareResult" class="result-box">
+                <p>Enter barcode and click Compare</p>
+            </div>
+        </div>
+
+        <div class="tab-content" id="basket" style="display: none;">
+            <h2>Basket Price Comparison</h2>
+            
+            <div class="controls">
+                <textarea id="basketItems" class="input-field" rows="6" placeholder='[{"barcode": "5901234123457", "quantity": 2}, {"barcode": "5901234123458", "quantity": 1}]'></textarea>
+                <button onclick="compareBasket()">Compare Basket</button>
+            </div>
+
+            <div id="basketResult" class="result-box">
+                <p>Enter basket items in JSON format and click Compare</p>
+            </div>
+        </div>
+
+        <div class="tab-content" id="stats" style="display: none;">
+            <h2>Supermarket Statistics</h2>
+            
+            <div class="controls">
+                <button onclick="getSupermarketStats()">Load Statistics</button>
+            </div>
+
+            <div id="statsResult" class="result-box">
+                <p>Click "Load Statistics" to view supermarket stats</p>
+            </div>
+        </div>
+
+        <div class="tab-content" id="users" style="display: none;">
+            <h2>Team Members</h2>
+            
+            <div class="controls">
+                <button onclick="getUsers()">Load Team</button>
+            </div>
+
+            <div id="usersResult" class="result-box">
+                <p>Click "Load Team" to view team members</p>
+            </div>
+        </div>
+
+        <div class="tab-content" id="health" style="display: none;">
+            <h2>API Health Check</h2>
+            
+            <div class="controls">
+                <button onclick="healthCheck()">Check Health</button>
+            </div>
+
+            <div id="healthResult" class="result-box">
+                <p>Click "Check Health" to test API connection</p>
+            </div>
+        </div>
+
+        <footer>
+            <p>Supermarket Catalogue Dashboard | <a href="/swagger/index.html" target="_blank">View Swagger API Docs</a></p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

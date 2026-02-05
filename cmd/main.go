@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"supermarket-catalogue/internal/handlers"
-	// "supermarket-catalogue/internal/middleware"
+	"supermarket-catalogue/internal/middleware"
 	"supermarket-catalogue/internal/repository"
 
 	_ "supermarket-catalogue/docs"
@@ -15,16 +15,6 @@ import (
 	httpSwagger "github.com/swaggo/http-swagger"
 )
 
-// @title           Supermarket Goods Catalogue API
-// @version         1.0
-// @description     API for supermarket products catalogue
-// @termsOfService  http://swagger.io/terms/
-
-// @contact.name   API Support
-// @contact.email  support@supermarket.com
-
-// @host      localhost:8080
-// @BasePath  /
 func main() {
 	err := repository.Init()
 	if err != nil {
@@ -32,8 +22,7 @@ func main() {
 	}
 
 	r := mux.NewRouter()
-
-	// r.Use(middleware.LoggingMiddleware)
+	r.Use(middleware.CORSMiddleware)
 
 	r.HandleFunc("/products", handlers.GetProducts).Methods("GET")
 	r.HandleFunc("/products", handlers.CreateProduct).Methods("POST")
@@ -52,7 +41,21 @@ func main() {
 		httpSwagger.DomID("swagger-ui"),
 	))
 
-	go backgroundLogger()
+	fs := http.FileServer(http.Dir("./ui/html"))
+
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./ui/html/index.html")
+	})
+
+	r.HandleFunc("/style.css", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./ui/html/style.css")
+	})
+
+	r.HandleFunc("/script.js", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "./ui/html/script.js")
+	})
+
+	r.PathPrefix("/").Handler(fs)
 
 	server := &http.Server{
 		Addr:         ":8080",
@@ -62,19 +65,11 @@ func main() {
 		IdleTimeout:  60 * time.Second,
 	}
 
-	log.Println("🚀 Server starting on http://localhost:8080")
-	log.Println("📚 Swagger docs available at http://localhost:8080/swagger/index.html")
+	log.Println("Server starting on http://localhost:8080")
+	log.Println("Swagger docs available at http://localhost:8080/swagger/index.html")
+	log.Println("Frontend available at http://localhost:8080")
 
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatal("Server failed:", err)
-	}
-}
-
-func backgroundLogger() {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		log.Println("✅ Background goroutine: API is running normally")
 	}
 }
