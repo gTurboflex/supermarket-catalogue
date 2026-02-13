@@ -26,18 +26,6 @@ type compareResponse struct {
 	Best    *compareRow  `json:"best,omitempty"`
 }
 
-// CompareByBarcode compares product offers across supermarkets by barcode
-// @Summary Compare product offers by barcode
-// @Description Retrieve all product entries with the same barcode across supermarkets and highlight the cheapest option
-// @Tags products
-// @Accept json
-// @Produce json
-// @Param barcode path string true "Product Barcode"
-// @Success 200 {object} compareResponse
-// @Failure 400 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /products/compare/{barcode} [get]
 func CompareByBarcode(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	code := vars["barcode"]

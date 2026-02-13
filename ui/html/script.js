@@ -81,7 +81,7 @@ async function makeRequest(method, endpoint, data = null) {
     }
 }
 
-// ============= АУТЕНТИФИКАЦИЯ =============
+
 function register() {
     const user = {
         name: document.getElementById('regName').value,
@@ -123,17 +123,24 @@ function login() {
     showLoading('loginResult');
     
     makeRequest('POST', '/login', credentials)
-        .then(data => {
-            currentToken = data.token;
-            currentUser = data.user;
-            localStorage.setItem('token', currentToken);
-            localStorage.setItem('user', JSON.stringify(currentUser));
-            loadAuthFromStorage();
-            updateAuthStatus();
-            showSuccess('loginResult', `Logged in as ${currentUser.name}`);
-            getAllProducts(); // Перезагружаем список с кнопками
-        })
-        .catch(error => showError('loginResult', error));
+    .then(data => {
+        currentToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('token', currentToken);
+        localStorage.setItem('user', JSON.stringify(currentUser));
+        loadAuthFromStorage();
+        updateAuthStatus();
+
+        if (currentUser && currentUser.role === 'admin') {
+            window.location = '/admin';
+            return;
+        }
+
+        showSuccess('loginResult', `Logged in as ${currentUser.name}`);
+        getAllProducts(); 
+    })
+    .catch(error => showError('loginResult', error));
+
 }
 
 function logout() {
@@ -145,7 +152,7 @@ function logout() {
     updateAuthStatus();
     hideCreateForm();
     alert('Logged out successfully');
-    getAllProducts(); // Перезагружаем список без кнопок
+    getAllProducts(); 
 }
 
 function updateAuthStatus() {
@@ -185,27 +192,32 @@ function updateUIBasedOnAuth() {
     }
 }
 
-// ============= УПРАВЛЕНИЕ ПРОДУКТАМИ =============
-function getAllProducts() {
+let currentPage = 1;
+const pageSize = 10; 
+
+function getAllProducts(page = 1) {
+    currentPage = page;
     showLoading('productsResult');
-    
-    makeRequest('GET', '/products')
-        .then(products => {
-            if (products.length === 0) {
+
+    makeRequest('GET', `/products?page=${currentPage}&limit=${pageSize}`)
+        .then(data => {
+            const products = data.products || [];
+            const total = data.total || products.length;
+
+            if (!Array.isArray(products) || products.length === 0) {
                 document.getElementById('productsResult').innerHTML = '<p>No products found</p>';
                 return;
             }
-            
+
             let html = '<table>';
             html += '<tr><th>ID</th><th>Name</th><th>Price</th><th>Stock</th><th>Barcode</th><th>Supermarket</th><th>Actions</th></tr>';
-            
+
             products.forEach(product => {
-                // Определяем, показывать ли кнопки редактирования/удаления
                 const canEdit = currentUser && (
                     currentUser.role === 'admin' || 
                     (product.owner_id && product.owner_id === currentUser.id)
                 );
-                
+
                 html += `
                 <tr>
                     <td>${product.id}</td>
@@ -217,22 +229,30 @@ function getAllProducts() {
                     <td>
                         <button onclick="viewProduct(${product.id})" style="padding: 5px 10px; margin: 2px; background: #17a2b8;">View</button>
                 `;
-                
+
                 if (canEdit) {
                     html += `<button onclick="showEditForm(${product.id})" style="padding: 5px 10px; margin: 2px; background: #ffc107;">Edit</button>`;
                     html += `<button onclick="deleteProduct(${product.id})" style="padding: 5px 10px; margin: 2px; background: #dc3545;">Delete</button>`;
                 }
-                
+
                 html += `</td></tr>`;
             });
-            
+
             html += '</table>';
-            html += `<p>Total products: ${products.length}</p>`;
+            html += `<p>Total products: ${total}</p>`;
+
             
-            document.getElementById('productsResult').innerHTML = html;
+            let nav = '<div class="pagination" style="margin-top:10px;">';
+            if (currentPage > 1) nav += `<button onclick="getAllProducts(${currentPage - 1})">Prev</button>`;
+            if (currentPage * pageSize < total) nav += `<button onclick="getAllProducts(${currentPage + 1})">Next</button>`;
+            nav += ` Page ${currentPage} of ${Math.ceil(total / pageSize)}`;
+            nav += '</div>';
+
+            document.getElementById('productsResult').innerHTML = html + nav;
         })
         .catch(error => showError('productsResult', error));
 }
+
 
 function viewProduct(id) {
     showLoading('productsResult');
@@ -309,7 +329,7 @@ async function showEditForm(id) {
         const product = await makeRequest('GET', `/products/${id}`);
         currentEditProductId = id;
         
-        // Заполняем форму данными продукта
+        
         document.getElementById('prodName').value = product.name || '';
         document.getElementById('prodPrice').value = product.price || '';
         document.getElementById('prodStock').value = product.stock || '';
@@ -318,7 +338,7 @@ async function showEditForm(id) {
         document.getElementById('prodCategory').value = product.category_id || '';
         document.getElementById('prodSupermarket').value = product.supermarket_id || '';
         
-        // Меняем заголовок и кнопку
+        
         const formTitle = document.querySelector('#createProductForm h3');
         if (formTitle) formTitle.textContent = 'Edit Product';
         
@@ -394,7 +414,7 @@ function clearForm() {
     document.getElementById('prodSupermarket').value = '';
 }
 
-// ============= СРАВНЕНИЕ ПО ШТРИХ-КОДУ =============
+
 function compareBarcode() {
     const barcode = document.getElementById('barcodeInput').value.trim();
     
@@ -445,7 +465,7 @@ function compareBarcode() {
         .catch(error => showError('compareResult', error));
 }
 
-// ============= СРАВНЕНИЕ КОРЗИНЫ =============
+
 function compareBasket() {
     const basketText = document.getElementById('basketItems').value;
     
@@ -506,7 +526,6 @@ function compareBasket() {
         .catch(error => showError('basketResult', error));
 }
 
-// ============= СТАТИСТИКА =============
 function getSupermarketStats() {
     showLoading('statsResult');
     
@@ -540,7 +559,6 @@ function getSupermarketStats() {
         .catch(error => showError('statsResult', error));
 }
 
-// ============= ПОЛЬЗОВАТЕЛИ =============
 function getUsers() {
     showLoading('usersResult');
     
@@ -572,7 +590,7 @@ function getUsers() {
         .catch(error => showError('usersResult', error));
 }
 
-// ============= HEALTH CHECK =============
+
 function healthCheck() {
     showLoading('healthResult');
     

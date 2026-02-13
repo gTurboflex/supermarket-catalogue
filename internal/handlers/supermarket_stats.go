@@ -16,14 +16,6 @@ type SupermarketStats struct {
 	MaxPrice        float64 `json:"max_price"`
 }
 
-// GetSupermarketStats returns stats for each supermarket
-// @Summary Supermarket statistics
-// @Description Retrieve product statistics for each supermarket: product count, average, min, max price
-// @Tags supermarkets
-// @Accept json
-// @Produce json
-// @Success 200 {array} SupermarketStats
-// @Router /supermarkets/stats [get]
 func GetSupermarketStats(w http.ResponseWriter, r *http.Request) {
 	query := `
 		SELECT s.id, s.name, COUNT(p.id), AVG(p.price), MIN(p.price), MAX(p.price)

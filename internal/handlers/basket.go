@@ -28,16 +28,6 @@ type BasketResponse struct {
 	Results []SupermarketTotal `json:"results"`
 }
 
-// @Summary Compare basket cost across supermarkets
-// @Description Given a list of (barcode, quantity) items, compute cost to buy that basket in each supermarket and list missing items
-// @Tags basket
-// @Accept json
-// @Produce json
-// @Param basket body BasketRequest true "Basket items"
-// @Success 200 {object} BasketResponse
-// @Failure 400 {object} map[string]string
-// @Failure 500 {object} map[string]string
-// @Router /basket/compare [post]
 func CompareBasket(w http.ResponseWriter, r *http.Request) {
 	var req BasketRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {

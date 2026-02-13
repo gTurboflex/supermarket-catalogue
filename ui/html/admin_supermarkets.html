@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>{{.Title}}</title>
+<link rel="stylesheet" href="/style.css" />
+<style>
+  body { font-family: -apple-system, Roboto, sans-serif; padding: 20px; background: #f6f7fb; }
+  .card { background:white; padding:16px; border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); max-width:1100px; margin:0 auto; }
+  table { width:100%; border-collapse:collapse; margin-top:12px; }
+  th, td { padding:10px 8px; border-bottom:1px solid #eee; text-align:left; }
+  .controls { display:flex; gap:8px; align-items:center; margin-top:12px; }
+  input, textarea { padding:8px; border:1px solid #ddd; border-radius:6px; }
+  button { padding:8px 12px; border-radius:6px; border:none; cursor:pointer; }
+  .btn-primary { background:#007bff; color:white; }
+  .btn-danger { background:#dc3545; color:white; }
+  .muted { color:#666; font-size:0.9rem; }
+  .topbar { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+  .hidden { display:none; }
+  .form-row { display:flex; gap:8px; margin-top:8px; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="topbar">
+      <div>
+        <h2>{{.Title}}</h2>
+      </div>
+      <div>
+        <button id="logoutBtn" class="btn-primary">Logout</button>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="reloadBtn" class="btn-primary">Reload list</button>
+      <button id="showCreateBtn">Create supermarket</button>
+    </div>
+
+    <div id="createForm" class="card hidden" style="margin-top:12px;">
+      <h3>Create supermarket</h3>
+      <div class="form-row">
+        <input id="c_name" placeholder="Name" />
+        <input id="c_address" placeholder="Address" />
+        <input id="c_owner" type="number" placeholder="Owner ID (optional)" />
+        <button id="createSubmit" class="btn-primary">Create</button>
+        <button id="createCancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="editForm" class="card hidden" style="margin-top:12px;">
+      <h3>Edit supermarket</h3>
+      <div class="form-row">
+        <input id="e_id" disabled style="width:80px;" />
+        <input id="e_name" placeholder="Name" />
+        <input id="e_address" placeholder="Address" />
+        <input id="e_owner" type="number" placeholder="Owner ID (optional)" />
+        <button id="editSubmit" class="btn-primary">Save</button>
+        <button id="editCancel">Cancel</button>
+      </div>
+    </div>
+
+    <div id="list" style="margin-top:16px;">
+      <table id="table">
+        <thead>
+          <tr><th>ID</th><th>Name</th><th>Address</th><th>Owner ID</th><th>Created At</th><th>Actions</th></tr>
+        </thead>
+        <tbody id="tbody">
+          <tr><td colspan="6" class="muted">Loading...</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div id="msg" style="margin-top:12px;"></div>
+  </div>
+
+<script>
+(function(){
+  const api = '';
+  function token() { return localStorage.getItem('token') || ''; }
+  function authHeader() {
+    const t = token();
+    return t ? { 'Authorization': 'Bearer ' + t } : {};
+  }
+  function showMsg(text, err) {
+    const el = document.getElementById('msg');
+    el.innerHTML = '<div style="padding:10px;border-radius:6px;'+(err? 'background:#fdecea;color:#301':'background:#e6f4ea;color:#173')+'">' + text + '</div>';
+    setTimeout(()=>el.innerHTML = '', 3500);
+  }
+
+  async function fetchJSON(path, opts) {
+    opts = opts || {};
+    opts.headers = Object.assign({'Content-Type':'application/json'}, opts.headers || {}, authHeader());
+    const res = await fetch(api + path, opts);
+    if (res.status === 204) return null;
+    const text = await res.text();
+    try { return JSON.parse(text); } catch { throw new Error('invalid json'); }
+  }
+
+  async function loadList(){
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = '<tr><td colspan="6" class="muted">Loading...</td></tr>';
+    try {
+      const list = await fetchJSON('/supermarkets', { method: 'GET' });
+      if (!Array.isArray(list) || list.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="6" class="muted">No supermarkets</td></tr>';
+        return;
+      }
+      tbody.innerHTML = '';
+      list.forEach(s => {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${s.id}</td>
+          <td>${escapeHtml(s.name || '')}</td>
+          <td>${escapeHtml(s.address || '')}</td>
+          <td>${s.owner_id || '-'}</td>
+          <td>${s.created_at || '-'}</td>
+          <td>
+            <button data-id="${s.id}" class="editBtn">Edit</button>
+            <button data-id="${s.id}" class="delBtn" style="margin-left:8px;">Delete</button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    } catch (e) {
+      tbody.innerHTML = '<tr><td colspan="6" class="muted">Load error</td></tr>';
+      showMsg('Load failed: ' + e.message, true);
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+
+  document.getElementById('showCreateBtn').addEventListener('click', () => {
+    document.getElementById('createForm').classList.toggle('hidden');
+  });
+  document.getElementById('createCancel').addEventListener('click', () => {
+    document.getElementById('createForm').classList.add('hidden');
+  });
+  document.getElementById('createSubmit').addEventListener('click', async () => {
+    const name = document.getElementById('c_name').value.trim();
+    const address = document.getElementById('c_address').value.trim();
+    const owner = parseInt(document.getElementById('c_owner').value) || null;
+    if (!name) { showMsg('Name required', true); return; }
+    try {
+      const body = { name, address, owner_id: owner };
+      const created = await fetchJSON('/admin/supermarkets', { method:'POST', body: JSON.stringify(body) });
+      showMsg('Created id=' + (created.id || '?'));
+      document.getElementById('c_name').value = '';
+      document.getElementById('c_address').value = '';
+      document.getElementById('c_owner').value = '';
+      document.getElementById('createForm').classList.add('hidden');
+      await loadList();
+    } catch (e) { showMsg('Create failed: ' + e.message, true); }
+  });
+
+  
+  document.getElementById('tbody').addEventListener('click', async (ev) => {
+    const t = ev.target;
+    if (t.classList.contains('editBtn')) {
+      const id = t.dataset.id;
+      
+      try {
+        const s = await fetchJSON('/supermarkets/' + id, { method:'GET' });
+        document.getElementById('e_id').value = s.id;
+        document.getElementById('e_name').value = s.name || '';
+        document.getElementById('e_address').value = s.address || '';
+        document.getElementById('e_owner').value = s.owner_id || '';
+        document.getElementById('editForm').classList.remove('hidden');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      } catch (e) { showMsg('Fetch failed: ' + e.message, true); }
+    } else if (t.classList.contains('delBtn')) {
+      if (!confirm('Delete this supermarket?')) return;
+      const id = t.dataset.id;
+      try {
+        await fetchJSON('/admin/supermarkets/' + id, { method:'DELETE' });
+        showMsg('Deleted ' + id);
+        await loadList();
+      } catch (e) { showMsg('Delete failed: ' + e.message, true); }
+    }
+  });
+
+  
+  document.getElementById('editSubmit').addEventListener('click', async () => {
+    const id = document.getElementById('e_id').value;
+    const name = document.getElementById('e_name').value.trim();
+    const address = document.getElementById('e_address').value.trim();
+    const owner = parseInt(document.getElementById('e_owner').value) || null;
+    if (!name) { showMsg('Name required', true); return; }
+    try {
+      const body = { name, address, owner_id: owner };
+      const updated = await fetchJSON('/admin/supermarkets/' + id, { method:'PUT', body: JSON.stringify(body) });
+      showMsg('Saved ' + id);
+      document.getElementById('editForm').classList.add('hidden');
+      await loadList();
+    } catch (e) { showMsg('Save failed: ' + e.message, true); }
+  });
+  document.getElementById('editCancel').addEventListener('click', () => {
+    document.getElementById('editForm').classList.add('hidden');
+  });
+
+  
+  document.getElementById('reloadBtn').addEventListener('click', loadList);
+  document.getElementById('showTokenBtn').addEventListener('click', () => alert('token: ' + (localStorage.getItem('token') || '(none)')));
+  document.getElementById('logoutBtn').addEventListener('click', () => {
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    window.location.replace('/');
+});
+
+
+  
+  (function init(){
+    
+    if (!token()) { window.location = '/'; return; }
+    
+    
+    loadList();
+  })();
+
+})();
+</script>
+</body>
+</html>

@@ -9,8 +9,6 @@ import (
 	"supermarket-catalogue/internal/middleware"
 	"supermarket-catalogue/internal/repository"
 
-	_ "supermarket-catalogue/docs"
-
 	"github.com/gorilla/mux"
 	httpSwagger "github.com/swaggo/http-swagger"
 )
@@ -20,47 +18,47 @@ func main() {
 	if err != nil {
 		log.Fatal("Database initialization failed:", err)
 	}
-
 	r := mux.NewRouter()
 
 	r.Use(middleware.CORSMiddleware)
 	r.Use(middleware.LoggingMiddleware)
 
-	// Публичные маршруты
 	r.HandleFunc("/register", handlers.RegisterHandler).Methods("POST")
 	r.HandleFunc("/login", handlers.LoginHandler).Methods("POST")
 	r.HandleFunc("/health", handlers.HealthCheck).Methods("GET")
 	r.HandleFunc("/products/compare/{barcode}", handlers.CompareByBarcode).Methods("GET")
 	r.HandleFunc("/products/{id}", handlers.GetProductByID).Methods("GET")
 	r.HandleFunc("/products", handlers.GetProducts).Methods("GET")
+	r.HandleFunc("/admin", handlers.AdminPage).Methods("GET")
 
-	// Маршруты, доступные только с авторизацией (любая роль)
 	authRouter := r.PathPrefix("").Subrouter()
 	authRouter.Use(middleware.AuthMiddleware)
 
 	authRouter.HandleFunc("/basket/compare", handlers.CompareBasket).Methods("POST")
-	authRouter.HandleFunc("/supermarkets/stats", handlers.GetSupermarketStats).Methods("GET")
 	authRouter.HandleFunc("/users", handlers.GetUsersHandler).Methods("GET")
 	authRouter.HandleFunc("/me", handlers.GetCurrentUserHandler).Methods("GET")
 
-	// ✅ Продукты – теперь доступны для всех авторизованных пользователей
+	authRouter.HandleFunc("/supermarkets/stats", handlers.GetSupermarketStats).Methods("GET")
+
 	authRouter.HandleFunc("/products", handlers.CreateProduct).Methods("POST")
 	authRouter.HandleFunc("/products/{id}", handlers.UpdateProduct).Methods("PUT")
 	authRouter.HandleFunc("/products/{id}", handlers.DeleteProduct).Methods("DELETE")
 
-	// Маршруты только для администраторов (будущие права)
+	r.HandleFunc("/supermarkets", handlers.GetSupermarkets).Methods("GET")
+	r.HandleFunc("/supermarkets/{id}", handlers.GetSupermarketByID).Methods("GET")
+
 	adminRouter := r.PathPrefix("").Subrouter()
 	adminRouter.Use(middleware.AuthMiddleware, middleware.AdminMiddleware)
-	// Сюда позже добавятся админские эндпоинты
+	adminRouter.HandleFunc("/admin/supermarkets", handlers.CreateSupermarket).Methods("POST")
+	adminRouter.HandleFunc("/admin/supermarkets/{id}", handlers.UpdateSupermarket).Methods("PUT")
+	adminRouter.HandleFunc("/admin/supermarkets/{id}", handlers.DeleteSupermarket).Methods("DELETE")
 
-	// Swagger
 	r.PathPrefix("/swagger/").Handler(httpSwagger.Handler(
 		httpSwagger.URL("http://localhost:8080/swagger/doc.json"),
 		httpSwagger.DocExpansion("none"),
 		httpSwagger.DomID("swagger-ui"),
 	))
 
-	// Статические файлы
 	fs := http.FileServer(http.Dir("./ui/html"))
 	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.ServeFile(w, r, "./ui/html/index.html")

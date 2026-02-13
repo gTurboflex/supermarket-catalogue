@@ -12,13 +12,24 @@ import (
 )
 
 func GetProducts(w http.ResponseWriter, r *http.Request) {
+	page, _ := strconv.Atoi(r.URL.Query().Get("page"))
+	if page < 1 {
+		page = 1
+	}
+	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
+
 	rows, err := database.DB.Query(`
 		SELECT id, name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price, last_updated, created_at
-		FROM products 
+		FROM products
 		ORDER BY id
-	`)
+		LIMIT $1 OFFSET $2
+	`, limit, offset)
 	if err != nil {
-		http.Error(w, "Database error: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer rows.Close()
@@ -26,22 +37,17 @@ func GetProducts(w http.ResponseWriter, r *http.Request) {
 	var products []models.Product
 	for rows.Next() {
 		var p models.Product
-		var image sql.NullString
-		var barcode sql.NullString
-		var unit sql.NullString
+		var image, barcode, unit sql.NullString
 		var unitPrice sql.NullFloat64
-		var lastUpdated sql.NullTime
-		var createdAt sql.NullTime
-		var ownerID sql.NullInt64
-		var supermarketID sql.NullInt64
+		var lastUpdated, createdAt sql.NullTime
+		var ownerID, supermarketID sql.NullInt64
 
-		err := rows.Scan(
+		if err := rows.Scan(
 			&p.ID, &p.Name, &p.Price, &p.Stock,
 			&image, &p.CategoryID, &ownerID, &supermarketID,
 			&barcode, &unit, &unitPrice, &lastUpdated, &createdAt,
-		)
-		if err != nil {
-			http.Error(w, "Scan error: "+err.Error(), http.StatusInternalServerError)
+		); err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
 
@@ -54,8 +60,6 @@ func GetProducts(w http.ResponseWriter, r *http.Request) {
 		if lastUpdated.Valid {
 			p.LastUpdated = lastUpdated.Time
 		}
-		if createdAt.Valid {
-		}
 		if ownerID.Valid {
 			p.OwnerID = int(ownerID.Int64)
 		}
@@ -66,8 +70,21 @@ func GetProducts(w http.ResponseWriter, r *http.Request) {
 		products = append(products, p)
 	}
 
+	var total int
+	err = database.DB.QueryRow(`SELECT COUNT(*) FROM products`).Scan(&total)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	resp := map[string]interface{}{
+		"products": products,
+		"total":    total,
+		"page":     page,
+		"limit":    limit,
+	}
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(products)
+	json.NewEncoder(w).Encode(resp)
 }
 
 func CreateProduct(w http.ResponseWriter, r *http.Request) {
@@ -78,24 +95,10 @@ func CreateProduct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userIDStr := r.Header.Get("X-User-ID")
-	if userIDStr == "" {
-		http.Error(w, `{"error": "Authentication required"}`, http.StatusUnauthorized)
-		return
-	}
-
-	userID, err := strconv.Atoi(userIDStr)
-	if err != nil {
-		http.Error(w, `{"error": "Invalid user ID"}`, http.StatusBadRequest)
-		return
-	}
-
-	product.OwnerID = userID
-
 	query := `
-    INSERT INTO products (name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price, last_updated, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-    RETURNING id
+		INSERT INTO products (name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		RETURNING id
 	`
 
 	err = database.DB.QueryRow(
@@ -133,7 +136,7 @@ func GetProductByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	query := `
-		SELECT id, name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price, last_updated, created_at
+		SELECT id, name, price, stock, image, category_id, owner_id, supermarket_id, barcode, unit, unit_price, last_updated
 		FROM products 
 		WHERE id = $1
 	`
@@ -144,14 +147,13 @@ func GetProductByID(w http.ResponseWriter, r *http.Request) {
 	var unit sql.NullString
 	var unitPrice sql.NullFloat64
 	var lastUpdated sql.NullTime
-	var createdAt sql.NullTime
 	var ownerID sql.NullInt64
 	var supermarketID sql.NullInt64
 
 	err = database.DB.QueryRow(query, id).Scan(
 		&p.ID, &p.Name, &p.Price, &p.Stock,
 		&image, &p.CategoryID, &ownerID, &supermarketID,
-		&barcode, &unit, &unitPrice, &lastUpdated, &createdAt,
+		&barcode, &unit, &unitPrice, &lastUpdated,
 	)
 
 	if err != nil {
@@ -194,31 +196,10 @@ func HealthCheck(w http.ResponseWriter, r *http.Request) {
 func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
+
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		http.Error(w, "Invalid product ID", http.StatusBadRequest)
-		return
-	}
-
-	userIDStr := r.Header.Get("X-User-ID")
-	role := r.Header.Get("X-User-Role")
-	if userIDStr == "" {
-		http.Error(w, `{"error": "Authentication required"}`, http.StatusUnauthorized)
-		return
-	}
-	userID, _ := strconv.Atoi(userIDStr)
-
-	var ownerID int
-	err = database.DB.QueryRow("SELECT owner_id FROM products WHERE id = $1", id).Scan(&ownerID)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Product not found"})
-		return
-	}
-
-	if role != "admin" && userID != ownerID {
-		http.Error(w, `{"error": "You can only edit your own products"}`, http.StatusForbidden)
 		return
 	}
 
@@ -231,24 +212,26 @@ func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 
 	query := `
         UPDATE products 
-        SET name = $1, price = $2, stock = $3, image = $4, category_id = $5, supermarket_id = $6, barcode = $7, unit = $8, unit_price = $9, last_updated = CURRENT_TIMESTAMP
-        WHERE id = $10
+        SET name = $1, price = $2, stock = $3, image = $4, category_id = $5, owner_id = $6, supermarket_id = $7, barcode = $8, unit = $9, unit_price = $10
+        WHERE id = $11
         RETURNING id
     `
 
 	err = database.DB.QueryRow(query,
 		product.Name, product.Price, product.Stock, product.Image,
-		product.CategoryID, product.SupermarketID, product.Barcode, product.Unit,
-		product.UnitPrice, id,
+		product.CategoryID, product.OwnerID, product.SupermarketID, product.Barcode, product.Unit, product.UnitPrice, id,
 	).Scan(&product.ID)
 
 	if err != nil {
-		http.Error(w, "Failed to update product: "+err.Error(), http.StatusInternalServerError)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error": "Product not found",
+		})
 		return
 	}
 
 	product.ID = id
-	product.OwnerID = ownerID
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(product)
 }
@@ -256,31 +239,10 @@ func UpdateProduct(w http.ResponseWriter, r *http.Request) {
 func DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
 	idStr := vars["id"]
+
 	id, err := strconv.Atoi(idStr)
 	if err != nil {
 		http.Error(w, "Invalid product ID", http.StatusBadRequest)
-		return
-	}
-
-	userIDStr := r.Header.Get("X-User-ID")
-	role := r.Header.Get("X-User-Role")
-	if userIDStr == "" {
-		http.Error(w, `{"error": "Authentication required"}`, http.StatusUnauthorized)
-		return
-	}
-	userID, _ := strconv.Atoi(userIDStr)
-
-	var ownerID int
-	err = database.DB.QueryRow("SELECT owner_id FROM products WHERE id = $1", id).Scan(&ownerID)
-	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(map[string]string{"error": "Product not found"})
-		return
-	}
-
-	if role != "admin" && userID != ownerID {
-		http.Error(w, `{"error": "You can only delete your own products"}`, http.StatusForbidden)
 		return
 	}
 
