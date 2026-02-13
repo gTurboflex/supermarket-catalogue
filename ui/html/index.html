@@ -20,8 +20,40 @@
             <button class="tab-btn" onclick="showTab('stats')">Supermarket Stats</button>
             <button class="tab-btn" onclick="showTab('users')">Team</button>
             <button class="tab-btn" onclick="showTab('health')">Health Check</button>
+            <button class="tab-btn" onclick="showTab('auth')">Login/Register</button>
         </nav>
 
+        <div class="tab-content" id="auth" style="display: none;">
+            <h2>Authentication</h2>
+            
+            <div class="auth-forms">
+                <div class="auth-form">
+                    <h3>Register</h3>
+                    <div class="form-group">
+                        <input type="text" id="regName" placeholder="Name" class="input-field">
+                        <input type="email" id="regEmail" placeholder="Email" class="input-field">
+                        <input type="password" id="regPassword" placeholder="Password" class="input-field">
+                        <input type="text" id="regRole" placeholder="Role (user/admin)" class="input-field">
+                        <button onclick="register()" style="background: #28a745;">Register</button>
+                    </div>
+                    <div id="registerResult"></div>
+                </div>
+
+                <div class="auth-form">
+                    <h3>Login</h3>
+                    <div class="form-group">
+                        <input type="email" id="loginEmail" placeholder="Email" class="input-field">
+                        <input type="password" id="loginPassword" placeholder="Password" class="input-field">
+                        <button onclick="login()" style="background: #007bff;">Login</button>
+                    </div>
+                    <div id="loginResult"></div>
+                </div>
+            </div>
+
+            <div id="authStatus" style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+                <p>Not logged in</p>
+            </div>
+        </div>
         <div class="tab-content" id="products">
             <h2>Products Management</h2>
             

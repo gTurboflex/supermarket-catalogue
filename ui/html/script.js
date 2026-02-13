@@ -1,5 +1,10 @@
 const API_BASE = window.location.origin;
 
+let currentToken = null;
+let currentUser = null;
+let currentEditProductId = null; 
+
+
 function showTab(tabId) {
     document.querySelectorAll('.tab-content').forEach(tab => {
         tab.style.display = 'none';
@@ -12,6 +17,7 @@ function showTab(tabId) {
     document.getElementById(tabId).style.display = 'block';
     event.currentTarget.classList.add('active');
 }
+
 
 function showError(elementId, error) {
     const element = document.getElementById(elementId);
@@ -28,6 +34,7 @@ function showSuccess(elementId, message) {
     element.innerHTML = `<div class="success">${message}</div>`;
 }
 
+
 async function makeRequest(method, endpoint, data = null) {
     const options = {
         method: method,
@@ -35,6 +42,11 @@ async function makeRequest(method, endpoint, data = null) {
             'Content-Type': 'application/json',
         },
     };
+    
+
+    if (currentToken) {
+        options.headers['Authorization'] = `Bearer ${currentToken}`;
+    }
     
     if (data) {
         options.body = JSON.stringify(data);
@@ -53,6 +65,13 @@ async function makeRequest(method, endpoint, data = null) {
         }
         
         if (!response.ok) {
+            if (response.status === 401) {
+                currentToken = null;
+                currentUser = null;
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                updateAuthStatus();
+            }
             throw new Error(responseData.error || responseData.message || `HTTP ${response.status}`);
         }
         
@@ -62,6 +81,111 @@ async function makeRequest(method, endpoint, data = null) {
     }
 }
 
+// ============= АУТЕНТИФИКАЦИЯ =============
+function register() {
+    const user = {
+        name: document.getElementById('regName').value,
+        email: document.getElementById('regEmail').value,
+        password: document.getElementById('regPassword').value,
+        role: document.getElementById('regRole').value || 'user'
+    };
+
+    if (!user.name || !user.email || !user.password) {
+        alert('Please fill all required fields');
+        return;
+    }
+
+    showLoading('registerResult');
+    
+    makeRequest('POST', '/register', user)
+        .then(data => {
+            currentToken = data.token;
+            currentUser = data.user;
+            localStorage.setItem('token', currentToken);
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            updateAuthStatus();
+            showSuccess('registerResult', `Registered successfully as ${user.name}`);
+        })
+        .catch(error => showError('registerResult', error));
+}
+
+function login() {
+    const credentials = {
+        email: document.getElementById('loginEmail').value,
+        password: document.getElementById('loginPassword').value
+    };
+
+    if (!credentials.email || !credentials.password) {
+        alert('Please fill all fields');
+        return;
+    }
+
+    showLoading('loginResult');
+    
+    makeRequest('POST', '/login', credentials)
+        .then(data => {
+            currentToken = data.token;
+            currentUser = data.user;
+            localStorage.setItem('token', currentToken);
+            localStorage.setItem('user', JSON.stringify(currentUser));
+            loadAuthFromStorage();
+            updateAuthStatus();
+            showSuccess('loginResult', `Logged in as ${currentUser.name}`);
+            getAllProducts(); // Перезагружаем список с кнопками
+        })
+        .catch(error => showError('loginResult', error));
+}
+
+function logout() {
+    currentToken = null;
+    currentUser = null;
+    currentEditProductId = null;
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    updateAuthStatus();
+    hideCreateForm();
+    alert('Logged out successfully');
+    getAllProducts(); // Перезагружаем список без кнопок
+}
+
+function updateAuthStatus() {
+    const authStatus = document.getElementById('authStatus');
+    if (!authStatus) return;
+    
+    if (currentUser) {
+        authStatus.innerHTML = `
+            <div class="success">
+                <h4>Logged in as: ${currentUser.name}</h4>
+                <p>Email: ${currentUser.email}</p>
+                <p>Role: ${currentUser.role}</p>
+                <button onclick="logout()" style="margin-top: 10px; background: #dc3545;">Logout</button>
+            </div>
+        `;
+    } else {
+        authStatus.innerHTML = '<p>Not logged in. Please login or register.</p>';
+    }
+    updateUIBasedOnAuth();
+}
+
+function loadAuthFromStorage() {
+    const savedToken = localStorage.getItem('token');
+    const savedUser = localStorage.getItem('user');
+    
+    if (savedToken && savedUser) {
+        currentToken = savedToken;
+        currentUser = JSON.parse(savedUser);
+        updateAuthStatus();
+    }
+}
+
+function updateUIBasedOnAuth() {
+    const createBtn = document.querySelector('.controls button[onclick="showCreateForm()"]');
+    if (createBtn) {
+        createBtn.style.display = currentUser ? 'inline-block' : 'none';
+    }
+}
+
+// ============= УПРАВЛЕНИЕ ПРОДУКТАМИ =============
 function getAllProducts() {
     showLoading('productsResult');
     
@@ -76,6 +200,12 @@ function getAllProducts() {
             html += '<tr><th>ID</th><th>Name</th><th>Price</th><th>Stock</th><th>Barcode</th><th>Supermarket</th><th>Actions</th></tr>';
             
             products.forEach(product => {
+                // Определяем, показывать ли кнопки редактирования/удаления
+                const canEdit = currentUser && (
+                    currentUser.role === 'admin' || 
+                    (product.owner_id && product.owner_id === currentUser.id)
+                );
+                
                 html += `
                 <tr>
                     <td>${product.id}</td>
@@ -86,9 +216,14 @@ function getAllProducts() {
                     <td>${product.supermarket_id || '-'}</td>
                     <td>
                         <button onclick="viewProduct(${product.id})" style="padding: 5px 10px; margin: 2px; background: #17a2b8;">View</button>
-                        <button onclick="deleteProduct(${product.id})" style="padding: 5px 10px; margin: 2px; background: #dc3545;">Delete</button>
-                    </td>
-                </tr>`;
+                `;
+                
+                if (canEdit) {
+                    html += `<button onclick="showEditForm(${product.id})" style="padding: 5px 10px; margin: 2px; background: #ffc107;">Edit</button>`;
+                    html += `<button onclick="deleteProduct(${product.id})" style="padding: 5px 10px; margin: 2px; background: #dc3545;">Delete</button>`;
+                }
+                
+                html += `</td></tr>`;
             });
             
             html += '</table>';
@@ -135,18 +270,21 @@ function showCreateForm() {
 
 function hideCreateForm() {
     document.getElementById('createProductForm').style.display = 'none';
+    resetProductForm();
 }
 
-function createProduct() {
+function createProduct(event) {
+    if (event) event.preventDefault();
     const product = {
         name: document.getElementById('prodName').value,
-        price: parseFloat(document.getElementById('prodPrice').value),
-        stock: parseInt(document.getElementById('prodStock').value),
-        barcode: document.getElementById('prodBarcode').value,
-        image: document.getElementById('prodImage').value,
+        price: parseFloat(document.getElementById('prodPrice').value) || 0,
+        stock: parseInt(document.getElementById('prodStock').value) || 0,
+        barcode: document.getElementById('prodBarcode').value || "",
+        image: document.getElementById('prodImage').value || "",
         category_id: parseInt(document.getElementById('prodCategory').value) || 1,
         supermarket_id: parseInt(document.getElementById('prodSupermarket').value) || 1,
-        unit_price: parseFloat(document.getElementById('prodPrice').value)
+        unit: "pcs", 
+        unit_price: parseFloat(document.getElementById('prodPrice').value) || 0
     };
     
     if (!product.name || !product.price) {
@@ -166,6 +304,86 @@ function createProduct() {
         .catch(error => showError('productsResult', error));
 }
 
+async function showEditForm(id) {
+    try {
+        const product = await makeRequest('GET', `/products/${id}`);
+        currentEditProductId = id;
+        
+        // Заполняем форму данными продукта
+        document.getElementById('prodName').value = product.name || '';
+        document.getElementById('prodPrice').value = product.price || '';
+        document.getElementById('prodStock').value = product.stock || '';
+        document.getElementById('prodBarcode').value = product.barcode || '';
+        document.getElementById('prodImage').value = product.image || '';
+        document.getElementById('prodCategory').value = product.category_id || '';
+        document.getElementById('prodSupermarket').value = product.supermarket_id || '';
+        
+        // Меняем заголовок и кнопку
+        const formTitle = document.querySelector('#createProductForm h3');
+        if (formTitle) formTitle.textContent = 'Edit Product';
+        
+        const submitBtn = document.querySelector('#createProductForm button[onclick="createProduct()"]');
+        if (submitBtn) {
+            submitBtn.textContent = 'Update';
+            submitBtn.setAttribute('onclick', 'updateProduct()');
+            submitBtn.style.background = '#ffc107';
+        }
+        
+        showCreateForm();
+    } catch (error) {
+        showError('productsResult', error);
+    }
+}
+
+async function updateProduct() {
+    if (!currentEditProductId) {
+        alert('No product selected for editing');
+        return;
+    }
+    
+    const product = {
+        name: document.getElementById('prodName').value,
+        price: parseFloat(document.getElementById('prodPrice').value),
+        stock: parseInt(document.getElementById('prodStock').value),
+        barcode: document.getElementById('prodBarcode').value,
+        image: document.getElementById('prodImage').value,
+        category_id: parseInt(document.getElementById('prodCategory').value) || 1,
+        supermarket_id: parseInt(document.getElementById('prodSupermarket').value) || 1,
+        unit_price: parseFloat(document.getElementById('prodPrice').value)
+    };
+    
+    if (!product.name || !product.price) {
+        alert('Product name and price are required');
+        return;
+    }
+    
+    showLoading('productsResult');
+    
+    try {
+        const updated = await makeRequest('PUT', `/products/${currentEditProductId}`, product);
+        showSuccess('productsResult', `Product ${updated.id} updated successfully`);
+        resetProductForm();
+        setTimeout(getAllProducts, 1500);
+    } catch (error) {
+        showError('productsResult', error);
+    }
+}
+
+function resetProductForm() {
+    clearForm();
+    currentEditProductId = null;
+    
+    const formTitle = document.querySelector('#createProductForm h3');
+    if (formTitle) formTitle.textContent = 'Create New Product';
+    
+    const submitBtn = document.querySelector('#createProductForm button[onclick="updateProduct()"]');
+    if (submitBtn) {
+        submitBtn.textContent = 'Submit';
+        submitBtn.setAttribute('onclick', 'createProduct()');
+        submitBtn.style.background = '#28a745';
+    }
+}
+
 function clearForm() {
     document.getElementById('prodName').value = '';
     document.getElementById('prodPrice').value = '';
@@ -176,6 +394,7 @@ function clearForm() {
     document.getElementById('prodSupermarket').value = '';
 }
 
+// ============= СРАВНЕНИЕ ПО ШТРИХ-КОДУ =============
 function compareBarcode() {
     const barcode = document.getElementById('barcodeInput').value.trim();
     
@@ -226,6 +445,7 @@ function compareBarcode() {
         .catch(error => showError('compareResult', error));
 }
 
+// ============= СРАВНЕНИЕ КОРЗИНЫ =============
 function compareBasket() {
     const basketText = document.getElementById('basketItems').value;
     
@@ -286,6 +506,7 @@ function compareBasket() {
         .catch(error => showError('basketResult', error));
 }
 
+// ============= СТАТИСТИКА =============
 function getSupermarketStats() {
     showLoading('statsResult');
     
@@ -319,6 +540,7 @@ function getSupermarketStats() {
         .catch(error => showError('statsResult', error));
 }
 
+// ============= ПОЛЬЗОВАТЕЛИ =============
 function getUsers() {
     showLoading('usersResult');
     
@@ -350,6 +572,7 @@ function getUsers() {
         .catch(error => showError('usersResult', error));
 }
 
+// ============= HEALTH CHECK =============
 function healthCheck() {
     showLoading('healthResult');
     
@@ -372,5 +595,7 @@ function healthCheck() {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+    loadAuthFromStorage();
+    updateUIBasedOnAuth();
     getAllProducts();
 });

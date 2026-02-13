@@ -1,0 +1,52 @@
+{
+  "items": [
+    {
+      "barcode": "000000000001",
+      "quantity": 2
+    },
+    {
+      "barcode": "000000000002",
+      "quantity": 1
+    },
+    {
+      "barcode": "000000000003",
+      "quantity": 1
+    },
+    {
+      "barcode": "000000000004",
+      "quantity": 3
+    },
+    {
+      "barcode": "000000000005",
+      "quantity": 2
+    },
+    {
+      "barcode": "000000000007",
+      "quantity": 12
+    },
+    {
+      "barcode": "000000000008",
+      "quantity": 1
+    },
+    {
+      "barcode": "000000000011",
+      "quantity": 2
+    },
+    {
+      "barcode": "000000000014",
+      "quantity": 6
+    },
+    {
+      "barcode": "000000000016",
+      "quantity": 1
+    },
+    {
+      "barcode": "000000000020",
+      "quantity": 1
+    },
+    {
+      "barcode": "000000000028",
+      "quantity": 1
+    }
+  ]
+}

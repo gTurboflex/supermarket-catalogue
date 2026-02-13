@@ -1,0 +1,344 @@
+definitions:
+  handlers.BasketItem:
+    properties:
+      barcode:
+        type: string
+      quantity:
+        type: integer
+    type: object
+  handlers.BasketRequest:
+    properties:
+      items:
+        items:
+          $ref: '#/definitions/handlers.BasketItem'
+        type: array
+    type: object
+  handlers.BasketResponse:
+    properties:
+      results:
+        items:
+          $ref: '#/definitions/handlers.SupermarketTotal'
+        type: array
+    type: object
+  handlers.SupermarketStats:
+    properties:
+      avg_price:
+        type: number
+      max_price:
+        type: number
+      min_price:
+        type: number
+      product_count:
+        type: integer
+      supermarket_id:
+        type: integer
+      supermarket_name:
+        type: string
+    type: object
+  handlers.SupermarketTotal:
+    properties:
+      matched_items:
+        type: integer
+      missing:
+        items:
+          type: string
+        type: array
+      supermarket_id:
+        type: integer
+      supermarket_name:
+        type: string
+      total:
+        type: number
+    type: object
+  handlers.compareResponse:
+    properties:
+      barcode:
+        type: string
+      best:
+        $ref: '#/definitions/handlers.compareRow'
+      results:
+        items:
+          $ref: '#/definitions/handlers.compareRow'
+        type: array
+    type: object
+  handlers.compareRow:
+    properties:
+      last_updated:
+        type: string
+      name:
+        type: string
+      price:
+        type: number
+      product_id:
+        type: integer
+      supermarket_id:
+        type: integer
+      supermarket_name:
+        type: string
+      unit:
+        type: string
+      unit_price:
+        type: number
+    type: object
+  models.Product:
+    properties:
+      barcode:
+        type: string
+      category_id:
+        type: integer
+      id:
+        type: integer
+      image:
+        type: string
+      last_updated:
+        type: string
+      name:
+        type: string
+      owner_id:
+        type: integer
+      price:
+        type: number
+      stock:
+        type: integer
+      supermarket_id:
+        type: integer
+      unit:
+        type: string
+      unit_price:
+        type: number
+    type: object
+info:
+  contact: {}
+paths:
+  /basket/compare:
+    post:
+      consumes:
+      - application/json
+      description: Given a list of (barcode, quantity) items, compute cost to buy
+        that basket in each supermarket and list missing items
+      parameters:
+      - description: Basket items
+        in: body
+        name: basket
+        required: true
+        schema:
+          $ref: '#/definitions/handlers.BasketRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.BasketResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Compare basket cost across supermarkets
+      tags:
+      - basket
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if API is running
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Health check
+      tags:
+      - utility
+  /products:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all products from the supermarket catalogue
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/models.Product'
+            type: array
+      summary: Get all products
+      tags:
+      - products
+    post:
+      consumes:
+      - application/json
+      description: Add a new product to the catalogue
+      parameters:
+      - description: Product data
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/models.Product'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Product'
+      summary: Create a new product
+      tags:
+      - products
+  /products/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete an existing product
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "204":
+          description: No Content
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Delete a product
+      tags:
+      - products
+    get:
+      consumes:
+      - application/json
+      description: Retrieve a specific product by its ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Product'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Get product by ID
+      tags:
+      - products
+    put:
+      consumes:
+      - application/json
+      description: Update an existing product
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated product data
+        in: body
+        name: product
+        required: true
+        schema:
+          $ref: '#/definitions/models.Product'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Product'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update a product
+      tags:
+      - products
+  /products/compare/{barcode}:
+    get:
+      consumes:
+      - application/json
+      description: Retrieve all product entries with the same barcode across supermarkets
+        and highlight the cheapest option
+      parameters:
+      - description: Product Barcode
+        in: path
+        name: barcode
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handlers.compareResponse'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Compare product offers by barcode
+      tags:
+      - products
+  /supermarkets/stats:
+    get:
+      consumes:
+      - application/json
+      description: 'Retrieve product statistics for each supermarket: product count,
+        average, min, max price'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/handlers.SupermarketStats'
+            type: array
+      summary: Supermarket statistics
+      tags:
+      - supermarkets
+swagger: "2.0"
